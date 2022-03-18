@@ -4,15 +4,15 @@ var C = xbee_api.constants;
 var storage = require("./storage")
 require('dotenv').config()
 
-
 const SERIAL_PORT = process.env.SERIAL_PORT;
+const on = true;
 
 var xbeeAPI = new xbee_api.XBeeAPI({
   api_mode: 2
 });
 
 let serialport = new SerialPort(SERIAL_PORT, {
-  baudRate: process.env.SERIAL_BAUDRATE || 9600,
+  baudRate: 9600,
 }, function (err) {
   if (err) {
     return console.log('Error: ', err.message)
@@ -55,26 +55,42 @@ xbeeAPI.parser.on("data", function (frame) {
     console.log("C.FRAME_TYPE.ZIGBEE_RECEIVE_PACKET");
     let dataReceived = String.fromCharCode.apply(null, frame.data);
     console.log(">> ZIGBEE_RECEIVE_PACKET >", dataReceived);
-
+    if(dataReceived == 2){
+      frame_obj = { // AT Request to be sent
+        type: C.FRAME_TYPE.REMOTE_AT_COMMAND_REQUEST,
+        destination16: frame.remote16,
+        command: "D2",
+        commandParameter: [0x04],
+    }
+    xbeeAPI.builder.write(frame_obj);
+    }
+    else if(dataReceived == 1){
+      frame_obj = { // AT Request to be sent
+        type: C.FRAME_TYPE.REMOTE_AT_COMMAND_REQUEST,
+        destination16: frame.remote16,
+        command: "D2",
+        commandParameter: [0x05],
+    }
+    xbeeAPI.builder.write(frame_obj);
+    }
   }
 
   if (C.FRAME_TYPE.NODE_IDENTIFICATION === frame.type) {
     // let dataReceived = String.fromCharCode.apply(null, frame.nodeIdentifier);
     console.log("NODE_IDENTIFICATION");
-    storage.registerSensor(frame.remote64)
+    // storage.registerSensor(frame.remote64)
 
   } else if (C.FRAME_TYPE.ZIGBEE_IO_DATA_SAMPLE_RX === frame.type) {
+      console.log("ZIGBEE_IO_DATA_SAMPLE_RX")
+      console.log(frame)
+      storage.registerSample(frame.remote64, 'toto')
 
-    console.log("ZIGBEE_IO_DATA_SAMPLE_RX")
-    console.log(frame.analogSamples.AD0)
-    storage.registerSample(frame.remote64,frame.analogSamples.AD0 )
-
-  } else if (C.FRAME_TYPE.REMOTE_COMMAND_RESPONSE === frame.type) {
+}else if (C.FRAME_TYPE.REMOTE_COMMAND_RESPONSE === frame.type) {
     console.log("REMOTE_COMMAND_RESPONSE")
+    console.log(frame)
   } else {
     console.debug(frame);
     let dataReceived = String.fromCharCode.apply(null, frame.commandData)
     console.log(dataReceived);
   }
-
 });
